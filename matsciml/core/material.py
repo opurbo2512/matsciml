@@ -39,12 +39,19 @@ class Material:
         self._valence_electrons = None
         self._ionic_character = None
         self._crystal_type = None # do this later
+        self._avg_atomic_mass = None
 
         #structure attributes
         self._crystal_system = None
         self._space_group = None
         self._space_group_number = None
         self._lattice = None
+        self._a = None
+        self._b = None
+        self._c = None
+        self._alpha = None
+        self._beta = None
+        self._gamma = None
         self._cell_volume = None
         self._density = None
         self._n_atoms_unit_cell = None
@@ -55,8 +62,11 @@ class Material:
         self._is_polar = None
         self._coordination_number = None
         self._bond_length = None
+        self._bond_length_min = None 
+        self._bond_length_max = None 
         self._bond_length_std = None
         self._packing_fraction = None
+        self._bond_angle_mean = None #do this later
         
         #electronic attributes
         self._valence_electron_count = None
@@ -64,6 +74,7 @@ class Material:
         self._bandgap_estimate = None
         self._bandgap_ml = None
         self._electronic_type = None
+        self._avg_ionization_energy = None # do this later
 
         if self.input_formula is not None:
             self._run_initial()
@@ -139,11 +150,13 @@ class Material:
             self._formula = self._structure.composition.reduced_formula
         return self._formula
     
+    """
     @property
     def name(self):
         if self._name is None:
             pass
         return self._name
+    """
 
     @property
     def elements(self):
@@ -226,12 +239,20 @@ class Material:
 
         return round(self._ionic_character,4)
     
+    """
     @property
     def crystal_type(self):
         if self._crystal_type is None:
             pass
 
         return self._crystal_type
+    """
+    
+    @property
+    def avg_atomic_mass(self):
+        if self._avg_atomic_mass  is None:
+            self._avg_atomic_mass = self._structure.composition.weight
+        return round(self._avg_atomic_mass ,4)
     
     @property
     def structure(self):
@@ -271,6 +292,48 @@ class Material:
                 "gamma" : latt.gamma
             }
         return self._lattice
+    
+    @property
+    def a(self):
+        if self._a is None:
+            lat_dic = self.lattice
+            self._a = lat_dic["a"]
+        return self._a
+    
+    @property
+    def b(self):
+        if self._b is None:
+            lat_dic = self.lattice
+            self._b = lat_dic["b"]
+        return self._b
+    
+    @property
+    def c(self):
+        if self._c is None:
+            lat_dic = self.lattice
+            self._c = lat_dic["c"]
+        return self._c
+    
+    @property
+    def alpha(self):
+        if self._alpha is None:
+            lat_dic = self.lattice
+            self._alpha = lat_dic["alpha"]
+        return self._alpha
+    
+    @property
+    def beta(self):
+        if self._beta is None:
+            lat_dic = self.lattice
+            self._beta = lat_dic["beta"]
+        return self._beta
+    
+    @property
+    def gamma(self):
+        if self._gamma is None:
+            lat_dic = self.lattice
+            self._gamma = lat_dic["gamma"]
+        return self._gamma
     
     @property
     def cell_volume(self):
@@ -349,10 +412,41 @@ class Material:
                 for neighbor in nn_info:
                     dist = self._structure[i].distance(neighbor["site"])
                     all_distance.append(dist)
-            
             self._bond_length = np.mean(all_distance)
 
         return round(self._bond_length,4)
+    
+    @property
+    def bond_length_min(self):
+        if self._bond_length_min is None:
+            all_distance = []
+            cnn = CrystalNN()
+            
+            for i in range(len(self._structure)):
+                nn_info = cnn.get_nn_info(self._structure , i)
+
+                for neighbor in nn_info:
+                    dist = self._structure[i].distance(neighbor["site"])
+                    all_distance.append(dist)
+            self._bond_length_min = min(all_distance)
+
+        return round(self._bond_length_min,4)
+    
+    @property
+    def bond_length_max(self):
+        if self._bond_length_max is None:
+            all_distance = []
+            cnn = CrystalNN()
+            
+            for i in range(len(self._structure)):
+                nn_info = cnn.get_nn_info(self._structure , i)
+
+                for neighbor in nn_info:
+                    dist = self._structure[i].distance(neighbor["site"])
+                    all_distance.append(dist)
+            self._bond_length_max = max(all_distance)
+
+        return round(self._bond_length_max,4)
     
     @property
     def bond_length_std(self):
@@ -391,6 +485,14 @@ class Material:
             self._packing_fraction = atomic_volume / cell_volume
 
         return round(self._packing_fraction,4)
+    
+    """
+    @property
+    def bond_angle_mean(self):
+        if self._bond_angle_mean is None:
+            pass
+        return self._bond_angle_mean
+    """
     
     @property
     def valence_electron_count(self):
@@ -469,7 +571,66 @@ class Material:
                 self._electronic_type = "insultor"
 
         return self._electronic_type
-            
+    
+    """
+    @property
+    def avg_ionization_energy(self):
+        if self.avg_ionization_energy is None:
+            pass
+        return self.avg_ionization_energy
+    """
+    
+    def get_neighbors(self,site_idx):
+        cnn = CrystalNN()
+        nn_info = cnn.get_nn_info(self._structure,site_idx)
+        neighbors_list = []
+
+        for n in nn_info:
+            n_site = n["site"]
+            info_dict = {}
+            info_dict["element"] = n_site.specie
+            info_dict["distance"] = float(round(n_site.distance(self._structure[site_idx]),4))
+            info_dict["site_idx"] = int(n_site.index)
+            neighbors_list.append(info_dict)
+
+        return neighbors_list
+    
+    def compare(self, other):
+        result = {}
+        Properties = [
+            #identity
+            "formula",
+            #structure
+            "crystal_system","space_group","space_group_number","n_symmetry_ops","is_centrosymmetric","is_polar",
+            #lattice
+            "a","b","c","alpha","beta","gamma","cell_volume","density","n_atoms_unit_cell",
+            #environment
+            "coordination_number","bond_length","bond_length_min","bond_length_max","bond_length_std","packing_fraction",
+            #composition
+            "electronegativity_diff","ionic_character","valence_electron_count","avg_atomic_mass",
+            #electronic
+            "bandgap_ml","electronic_type"
+        ]
+        Categorical = {
+            "formula","crystal_system","space_group","electronic_type"
+        }
+        Boolean = {
+            "is_centrosymmetric" , "is_polar"
+        }
+        for prop in Properties:
+            v1 = getattr(self,prop)
+            v2 = getattr(other,prop)
+
+            if prop in Categorical or prop in Boolean:
+                result[prop] = {
+                    "mat1" : v1, "mat2" : v2,"same" : v1 == v2
+                }
+            else:
+                result[prop] = {
+                    "mat1" : v1, "mat2" : v2,"diff" : round(v2-v1,4)
+                }
+        return result
+
 
             
 
