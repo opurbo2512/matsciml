@@ -7,9 +7,14 @@ from pymatgen.analysis.bond_valence import BVAnalyzer
 from mp_api.client import MPRester
 from composition import CompositionEngine
 import math
+import torch
 import numpy as np
 import warnings
 import logging
+import os
+
+os.environ["HF_TOKEN"] = "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"
+import matgl
 
 warnings.filterwarnings("ignore")
 logging.getLogger("pymatgen").setLevel(logging.ERROR)
@@ -31,7 +36,7 @@ class Material:
         self._composition = None
         self._electronegativity_diff = None
         self._oxidation_states = None # there are some bug, should update later
-        self._valence_electrons = None #update later
+        self._valence_electrons = None
         self._ionic_character = None
         self._crystal_type = None # do this later
 
@@ -55,6 +60,10 @@ class Material:
         
         #electronic attributes
         self._valence_electron_count = None
+        self._d_electron_count = None
+        self._bandgap_estimate = None
+        self._bandgap_ml = None
+        self._electronic_type = None
 
         if self.input_formula is not None:
             self._run_initial()
@@ -402,6 +411,66 @@ class Material:
             
             self._valence_electron_count = val_electrones / total_atoms
         return round(self._valence_electron_count,4)
+    
+    @property
+    def d_electron_count(self):
+        if self._d_electron_count is None:
+            self._d_electron_count = {}
+            elements = self._structure.elements
+
+            for ele in elements:
+                if ele.is_transition_metal:
+                    d_electron = 0
+                    for n,orb,occ in ele.full_electronic_structure:
+                        if orb == "d":
+                            d_electron += occ
+                    self._d_electron_count[ele.symbol] = d_electron
+
+            if len(self._d_electron_count) == 0:
+                self._d_electron_count = None
+
+        return self._d_electron_count
+    
+    @property
+    def bandgap_estimate(self):
+        if self._bandgap_estimate is None:
+            elements = self._structure.elements
+            has_metal = any(ele.is_metal for ele in elements)
+
+            if has_metal:
+                self._bandgap_estimate = (0,4)
+            else:
+                self._bandgap_estimate = (2,10)
+
+        return self._bandgap_estimate
+    
+    @property
+    def bandgap_ml(self):
+        if self._bandgap_ml is None:
+            model = matgl.load_model("MEGNet-BandGap-mfi-MP-2019.4.1")
+            state_attr = torch.tensor([0], dtype=torch.long)
+            prediction = model.predict_structure(self._structure, state_attr=state_attr)
+            self._bandgap_ml = prediction.item()
+        
+        return round(self._bandgap_ml,4)
+    
+    @property
+    def electronic_type(self):
+        if self._electronic_type is None:
+            band_gap = self.bandgap_ml
+            
+            if band_gap <=0 :
+                self._electronic_type = "metal"
+            elif 0 < band_gap < 0.1:
+                self._electronic_type = "semimetal"
+            elif 0.1 < band_gap < 3:
+                self._electronic_type = "semiconductor"
+            else:
+                self._electronic_type = "insultor"
+
+        return self._electronic_type
+            
+
             
 
     
