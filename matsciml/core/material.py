@@ -1,23 +1,40 @@
-from pymatgen.core import Composition,Element
-from pymatgen.core import Structure, Lattice
+#standard python libraries
+import os
+import time
+import math
+import logging
+import warnings
+from itertools import combinations
+
+#scientifically computing and machine learning
+import numpy as np
+import torch
+
+#material science library (Pymatgen)
+from pymatgen.core import Composition
+from pymatgen.core import Element
+from pymatgen.core import Structure
+from pymatgen.core import Lattice
+
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+
 from pymatgen.analysis.local_env import CrystalNN
 from pymatgen.analysis.bond_valence import BVAnalyzer
 
+#material project api
 from mp_api.client import MPRester
-from composition import CompositionEngine
-import math
-import torch
-import numpy as np
-import warnings
-import logging
-import os
 
-os.environ["HF_TOKEN"] = "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"
+#graph neaural network model
 import matgl
 
+#project specific module
+from composition import CompositionEngine
+
+#environment configure
+os.environ["HF_TOKEN"] = "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"
 warnings.filterwarnings("ignore")
 logging.getLogger("pymatgen").setLevel(logging.ERROR)
+
 
 class Material:
     def __init__(self,input_formula):
@@ -486,13 +503,23 @@ class Material:
 
         return round(self._packing_fraction,4)
     
-    """
     @property
     def bond_angle_mean(self):
         if self._bond_angle_mean is None:
-            pass
+            cnn = CrystalNN()
+            angles = []
+
+            for center in range(len(self._structure)):
+                neighbors = cnn.get_nn_info(self._structure,center)
+                neigh_idx = [n["site_index"] for n in neighbors]
+
+                for i,j in combinations(neigh_idx,2):
+                    angle = self._structure.get_angle(i,center,j)
+                    angles.append(angle)
+
+            self._bond_angle_mean = np.mean(angles)
+
         return self._bond_angle_mean
-    """
     
     @property
     def valence_electron_count(self):
@@ -572,13 +599,20 @@ class Material:
 
         return self._electronic_type
     
-    """
     @property
     def avg_ionization_energy(self):
-        if self.avg_ionization_energy is None:
-            pass
-        return self.avg_ionization_energy
-    """
+        if self._avg_ionization_energy is None:
+            composition = self._structure.composition
+            ie = 0
+            total_atoms = composition.num_atoms
+
+            for ele,amt in composition.items():
+                ie += Element(ele.symbol).ionization_energy * amt
+
+            self._avg_ionization_energy = round(ie / total_atoms,4)
+
+        return self._avg_ionization_energy
+
     
     def get_neighbors(self,site_idx):
         cnn = CrystalNN()
@@ -605,11 +639,11 @@ class Material:
             #lattice
             "a","b","c","alpha","beta","gamma","cell_volume","density","n_atoms_unit_cell",
             #environment
-            "coordination_number","bond_length","bond_length_min","bond_length_max","bond_length_std","packing_fraction",
+            "coordination_number","bond_length","bond_length_min","bond_length_max","bond_length_std","packing_fraction","bond_angle_mean",
             #composition
             "electronegativity_diff","ionic_character","valence_electron_count","avg_atomic_mass",
             #electronic
-            "bandgap_ml","electronic_type"
+            "bandgap_ml","electronic_type","avg_ionization_energy"
         ]
         Categorical = {
             "formula","crystal_system","space_group","electronic_type"
@@ -631,7 +665,5 @@ class Material:
                 }
         return result
 
-
-            
 
     
