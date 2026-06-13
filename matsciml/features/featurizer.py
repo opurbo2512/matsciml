@@ -58,6 +58,30 @@ class BondFeaturizer:
         return bond_array
     
 
+#Family C — Compositional & Electronic Features
+
+class CompositionFeaturizer:
+    pass
+
+
+#Family D — Symmetry & Topology Features
+class SymmetryFeaturizer:
+    def __init__(self):
+        self._info = []
+        self.symmetry_list = ["cubic","hexagonal","trigonal","tetragonal","orthorhombic","monoclinic","triclinic"]
+        
+    def transform(self,materials):
+        for material in materials:
+            zero_array = np.zeros(7)
+            crystal_type = material.crystal_system
+            index_cubic = self.symmetry_list.index(crystal_type)
+            zero_array[index_cubic] = 1
+            self._info.append(zero_array)
+        
+        return self._info
+    
+        
+    
 
 
 
