@@ -19,6 +19,7 @@ from pymatgen.core import Lattice
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 from pymatgen.analysis.local_env import CrystalNN
+from pymatgen.analysis.local_env import EconNN
 from pymatgen.analysis.bond_valence import BVAnalyzer
 
 #material project api
@@ -83,7 +84,9 @@ class Material:
         self._bond_length_max = None 
         self._bond_length_std = None
         self._packing_fraction = None
-        self._bond_angle_mean = None #do this later
+        self._bond_angle_mean = None
+        self._bond_angle_std = None
+        self._econ = None #(Effective Coordination Number)
         
         #electronic attributes
         self._valence_electron_count = None
@@ -91,7 +94,7 @@ class Material:
         self._bandgap_estimate = None
         self._bandgap_ml = None
         self._electronic_type = None
-        self._avg_ionization_energy = None # do this later
+        self._avg_ionization_energy = None
 
         if self.input_formula is not None:
             self._run_initial()
@@ -336,21 +339,21 @@ class Material:
         if self._alpha is None:
             lat_dic = self.lattice
             self._alpha = lat_dic["alpha"]
-        return self._alpha
+        return round(self._alpha,4)
     
     @property
     def beta(self):
         if self._beta is None:
             lat_dic = self.lattice
             self._beta = lat_dic["beta"]
-        return self._beta
+        return round(self._beta,4)
     
     @property
     def gamma(self):
         if self._gamma is None:
             lat_dic = self.lattice
             self._gamma = lat_dic["gamma"]
-        return self._gamma
+        return round(self._gamma,4)
     
     @property
     def cell_volume(self):
@@ -516,10 +519,49 @@ class Material:
                 for i,j in combinations(neigh_idx,2):
                     angle = self._structure.get_angle(i,center,j)
                     angles.append(angle)
+            if not angles:
+                self._bond_angle_mean = 0.0
+            else:
+                self._bond_angle_mean = np.mean(angles)
 
-            self._bond_angle_mean = np.mean(angles)
+        return round(self._bond_angle_mean,4)
+    
+    @property
+    def bond_angle_std(self):
+        if self._bond_angle_std is None:
+            cnn = CrystalNN()
+            angles = []
 
-        return self._bond_angle_mean
+            for center in range(len(self._structure)):
+                neighbors = cnn.get_nn_info(self._structure,center)
+                neigh_idx = [n["site_index"] for n in neighbors]
+
+                for i,j in combinations(neigh_idx,2):
+                    angle = self._structure.get_angle(i,center,j)
+                    angles.append(angle)
+            if not angles:
+                self._bond_angle_std = 0.0
+            else:
+                self._bond_angle_std = np.std(angles)
+
+        return round(self._bond_angle_std,4)
+    
+    @property
+    def econ(self):
+        if self._econ is None:
+            econ_class = EconNN()
+            econs = []
+
+            for i in range(len(self._structure)):
+                try:
+                    nn_info = econ_class.get_nn_info(self._structure,i)
+                    econs.append(sum(nn["weight"] for nn in nn_info))
+                except:
+                    pass
+
+            self._econ = np.mean(econs)
+
+        return round(self._econ,4)
     
     @property
     def valence_electron_count(self):
@@ -665,5 +707,3 @@ class Material:
                 }
         return result
 
-
-    
