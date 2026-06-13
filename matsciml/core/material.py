@@ -95,6 +95,7 @@ class Material:
         self._bandgap_ml = None
         self._electronic_type = None
         self._avg_ionization_energy = None
+        self._avg_electron_affinity = None
 
         if self.input_formula is not None:
             self._run_initial()
@@ -654,6 +655,20 @@ class Material:
             self._avg_ionization_energy = round(ie / total_atoms,4)
 
         return self._avg_ionization_energy
+    
+    @property
+    def avg_electron_affinity(self):
+        if self._avg_electron_affinity is None:
+            composition = self._structure.composition
+            electron_affinity = 0
+            total_atoms = composition.num_atoms
+
+            for ele,amt in composition.items():
+                electron_affinity += Element(ele.symbol).electron_affinity * amt
+
+            self._avg_electron_affinity = round(electron_affinity / total_atoms,4)
+
+        return self._avg_electron_affinity
 
     
     def get_neighbors(self,site_idx):
