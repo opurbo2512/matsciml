@@ -53,11 +53,13 @@ class Material:
         #composition attributes
         self._composition = None
         self._electronegativity_diff = None
+        self._electronegativity_mean = None
         self._oxidation_states = None # there are some bug, should update later
         self._valence_electrons = None
         self._ionic_character = None
         self._crystal_type = None # do this later
         self._avg_atomic_mass = None
+        self._atomic_number_variance = None
 
         #structure attributes
         self._crystal_system = None
@@ -91,6 +93,8 @@ class Material:
         #electronic attributes
         self._valence_electron_count = None
         self._d_electron_count = None
+        self._d_electron_per_atom = None
+        self._cation_to_anion_ratio = None
         self._bandgap_estimate = None
         self._bandgap_ml = None
         self._electronic_type = None
@@ -217,6 +221,16 @@ class Material:
         return self._electronegativity_diff
     
     @property
+    def electronegativity_mean(self):
+        if self._electronegativity_mean is None:
+            list_of_elements = self._structure.elements
+            list_of_electo = []
+            for element in list_of_elements:
+                list_of_electo.append(element.X)
+            self._electronegativity_mean = np.mean(list_of_electo)
+        return self._electronegativity_mean
+    
+    @property
     def oxidation_states(self):
         if self._oxidation_states is None:
             self._oxidation_states = {}
@@ -252,6 +266,7 @@ class Material:
 
         return self._valence_electrons
     
+    
     @property
     def ionic_character(self):
         if self._ionic_character is None:
@@ -274,6 +289,19 @@ class Material:
         if self._avg_atomic_mass  is None:
             self._avg_atomic_mass = self._structure.composition.weight
         return round(self._avg_atomic_mass ,4)
+    
+    @property
+    def atomic_number_variance(self):
+        if self._atomic_number_variance is None:
+            elements = self._structure.composition
+            atomic_numbers = []
+
+            for element in elements:
+                z = element.Z
+                atomic_numbers.append(z)
+
+            self._atomic_number_variance = np.var(atomic_numbers)
+        return self._atomic_number_variance
     
     @property
     def structure(self):
@@ -487,6 +515,9 @@ class Material:
                     site_std.append(np.std(local_distances))
 
             self._bond_length_std = np.mean(site_std)
+            if np.isnan(self._bond_length_std):
+                self._bond_length_std = 0
+
         return round(self._bond_length_std,4)
     
     @property
@@ -525,6 +556,9 @@ class Material:
             else:
                 self._bond_angle_mean = np.mean(angles)
 
+            if np.isnan(self._bond_angle_mean):
+                self._bond_angle_mean = 0
+
         return round(self._bond_angle_mean,4)
     
     @property
@@ -544,6 +578,9 @@ class Material:
                 self._bond_angle_std = 0.0
             else:
                 self._bond_angle_std = np.std(angles)
+
+            if np.isnan(self._bond_angle_std):
+                self._bond_angle_std = 0
 
         return round(self._bond_angle_std,4)
     
@@ -583,6 +620,7 @@ class Material:
             
             self._valence_electron_count = val_electrones / total_atoms
         return round(self._valence_electron_count,4)
+
     
     @property
     def d_electron_count(self):
@@ -602,6 +640,47 @@ class Material:
                 self._d_electron_count = None
 
         return self._d_electron_count
+    
+    @property
+    def d_electron_per_atom(self):
+        if self._d_electron_per_atom is None:
+            d_electron_dict = self.d_electron_count
+
+            if d_electron_dict is None:
+                self._d_electron_per_atom = 0
+            else:
+                self._d_electron_per_atom = 0
+
+                for val in d_electron_dict.values():
+                    self._d_electron_per_atom += val
+
+                self._d_electron_per_atom /= len(d_electron_dict)
+        return self._d_electron_per_atom
+    
+    @property
+    def cation_to_anion_ratio(self):
+        if self._cation_to_anion_ratio is None:
+            t_structure = self._structure
+            t_structure.add_oxidation_state_by_guess()
+
+            cation_count = 0
+            anion_count = 0
+
+            for site in t_structure:
+                oxi = site.specie.oxi_state
+
+                if oxi > 0:
+                    cation_count += 1
+                elif oxi < 0:
+                    anion_count += 1
+            try:
+                self._cation_to_anion_ratio = cation_count / anion_count
+            except:
+                self._cation_to_anion_ratio = 0
+
+        return self._cation_to_anion_ratio
+    
+            
     
     @property
     def bandgap_estimate(self):
