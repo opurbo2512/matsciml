@@ -189,24 +189,29 @@ class StructuralFeaturizer:
     def fit(self,materials):
         X = self._extract_features(materials)
         
+        if "symmetry" in self._info_needed_list:
+            X_cont = X[:,:-6]
+            X_cat = X[:,-6:]
+        else:
+            X_cont = X
         if self._normalize == "standard":
-            self.std_ = np.std(X,axis=0)
+            self.std_ = np.std(X_cont,axis=0)
             self.std_ = np.where(self.std_ == 0, 1, self.std_)
-            self.mean_ = np.mean(X,axis=0)
+            self.mean_ = np.mean(X_cont,axis=0)
             self._scalar_up = self.mean_
             self._scalar_down = self.std_
 
         elif self._normalize == "minimax":
-            self.min_ = np.min(X,axis=0)
-            self.max_ = np.max(X,axis=0)
+            self.min_ = np.min(X_cont,axis=0)
+            self.max_ = np.max(X_cont,axis=0)
             self._scalar_up = self.min_
             self._scalar_down = self.max_ - self.min_
             self._scalar_down = np.where(self._scalar_down == 0, 1, self._scalar_down)
 
         elif self._normalize == "robust":
-            self.q25_ = np.percentile(X,25,axis=0)
-            self.q75_ = np.percentile(X,75,axis=0)
-            self.median_ = np.median(X,axis=0)
+            self.q25_ = np.percentile(X_cont,25,axis=0)
+            self.q75_ = np.percentile(X_cont,75,axis=0)
+            self.median_ = np.median(X_cont,axis=0)
             self._scalar_up = self.median_
             self._scalar_down = self.q75_ - self.q25_
             self._scalar_down = np.where(self._scalar_down == 0, 1, self._scalar_down)
@@ -214,16 +219,34 @@ class StructuralFeaturizer:
         else:
             self._scalar_up = 0
             self._scalar_down = 1
+        if "symmetry" in self._info_needed_list:
+            X = np.hstack((X_cont,X_cat))
+        else:
+            X = X_cont
 
         self._fitted = True
         return self
 
     def transform(self,materials):
+        if not self._fitted:
+            raise RuntimeError("Call fit() first")
+
         X = self._extract_features(materials)
 
-        if self._fitted:
-            X = (X-self._scalar_up) / self._scalar_down
-        return self._format_output(X, materials)
+        if "symmetry" in self._info_needed_list:
+            X_cont = X[:, :-6]
+            X_cat = X[:, -6:]
+        else:
+            X_cont = X
+
+        X_cont = (X_cont - self._scalar_up) / self._scalar_down
+
+        if "symmetry" in self._info_needed_list:
+            X = np.hstack((X_cont, X_cat))
+        else:
+            X = X_cont
+
+        return X
     
     def fit_transform(self,materials):
         return self.fit(materials).transform(materials)
@@ -241,9 +264,3 @@ class StructuralFeaturizer:
             df = pd.DataFrame(X,columns=self.column_names)
             return df.to_dict(orient="list")
             
-
-        
-
-"""
-need to change normalization. it normalizer verything, also the categorical and one hot encoding.
-"""
